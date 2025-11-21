@@ -6,11 +6,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Rich Text Editor with Preview</title>
     <style>
+        html, body {
+            height: 100%;
+        }
         body {
             font-family: Arial, sans-serif;
             margin: 0;
             padding: 0;
             background: #f4f4f4;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
         }
         .toolbar {
             display: flex;
@@ -18,6 +24,7 @@
             background: #222;
             color: #fff;
             padding: 10px 20px;
+            flex: 0 0 auto;
         }
         .toolbar button {
             margin-right: 20px;
@@ -36,31 +43,73 @@
         }
         .container {
             display: flex;
-            height: calc(100vh - 50px);
+            flex: 1 1 auto;
+            width: 100%;
+            min-height: 0;
         }
-        .editor-pane, .preview-pane {
-            flex: 1;
-            padding: 20px;
+        .editor-pane,
+        .preview-pane {
             background: #fff;
             box-sizing: border-box;
             overflow: auto;
+            min-width: 200px;
+            min-height: 0;
         }
         .editor-pane {
+            display: flex;
+            flex-direction: column;
+            flex: 0 0 50%;
             border-right: 1px solid #ddd;
+        }
+        .preview-pane {
+            flex: 1 1 auto;
+            display: flex;
+            flex-direction: column;
+            padding: 4px 20px 20px;
+            overflow-wrap: anywhere;
+            word-break: break-word;
+        }
+        .preview-pane:focus-within {
+            outline: none;
+        }
+        #preview:focus {
+            outline: none;
+        }
+        .resizer {
+            width: 6px;
+            cursor: col-resize;
+            background: #e0e0e0;
+            transition: background 0.2s ease;
+            touch-action: none;
+        }
+        .resizer:hover,
+        .resizer.dragging {
+            background: #c0c0c0;
         }
         .rich-editor {
             width: 100%;
-            height: 100%;
-            min-height: 400px;
-            border: 1px solid #ccc;
-            border-radius: 4px;
-            padding: 10px;
-            background: #fafafa;
+            flex: 1 1 auto;
+            border: none;
+            border-radius: 0;
+            padding: 16px;
+            background: #fff;
             font-size: 16px;
             outline: none;
             color: #222;
             font-family: monospace;
             /* No syntax highlighting or color styling */
+            box-sizing: border-box;
+            margin: 0;
+            overflow: auto;
+            min-height: 0;
+        }
+        #preview {
+            flex: 1 1 auto;
+            min-height: 0;
+            overflow: auto;
+        }
+        .placeholder-text {
+            color: #999;
         }
         .console-output {
             background: #222;
@@ -79,16 +128,20 @@
         <button id="formatBtn">Format</button>
         <label><input type="checkbox" id="imgPreview"> Image Preview</label>
         <label><input type="checkbox" id="consoleToggle"> Console</label>
+        <label><input type="checkbox" id="filenameToggle" checked> Filename</label>
          <label><input type="checkbox" id="darkModeToggle" checked> Dark Mode</label>
     </div>
-    <div class="container">
-        <div class="editor-pane">
-            <div id="editor" class="rich-editor" contenteditable="true" spellcheck="false">
+    <div class="container" id="layoutContainer">
+        <div class="editor-pane" id="editorPane">
+            <div id="editor" class="rich-editor placeholder-text" contenteditable="true" spellcheck="false">
 // Paste your JavaScript code here and click Format
             </div>
             <div id="console" class="console-output"></div>
         </div>
-        <div class="preview-pane" id="preview"></div>
+        <div class="resizer" id="resizer" aria-hidden="true"></div>
+        <div class="preview-pane" id="previewPane">
+            <div id="preview" contenteditable="true" spellcheck="false"></div>
+        </div>
     </div>
     <script>
         const editor = document.getElementById('editor');
@@ -109,7 +162,51 @@
         const formatBtn = document.getElementById('formatBtn');
         const imgPreview = document.getElementById('imgPreview');
         const consoleToggle = document.getElementById('consoleToggle');
+        const filenameToggle = document.getElementById('filenameToggle');
+        const darkModeToggle = document.getElementById('darkModeToggle');
         const consoleOutput = document.getElementById('console');
+        const layoutContainer = document.getElementById('layoutContainer');
+        const editorPane = document.getElementById('editorPane');
+        const previewPane = document.getElementById('previewPane');
+        const resizer = document.getElementById('resizer');
+
+        const MIN_PANE_WIDTH = 200;
+        let isDraggingDivider = false;
+
+        function setPaneWidth(clientX) {
+            const containerRect = layoutContainer.getBoundingClientRect();
+            let newWidth = clientX - containerRect.left;
+            const maxWidth = containerRect.width - MIN_PANE_WIDTH;
+            newWidth = Math.max(MIN_PANE_WIDTH, Math.min(maxWidth, newWidth));
+            const percentage = (newWidth / containerRect.width) * 100;
+            editorPane.style.flex = `0 0 ${percentage}%`;
+            previewPane.style.flex = '1 1 auto';
+        }
+
+        if (resizer) {
+            resizer.addEventListener('pointerdown', (event) => {
+                isDraggingDivider = true;
+                resizer.classList.add('dragging');
+                resizer.setPointerCapture(event.pointerId);
+            });
+
+            resizer.addEventListener('pointermove', (event) => {
+                if (!isDraggingDivider) return;
+                setPaneWidth(event.clientX);
+            });
+
+            const stopDragging = (event) => {
+                if (!isDraggingDivider) return;
+                isDraggingDivider = false;
+                resizer.classList.remove('dragging');
+                if (event.pointerId !== undefined && resizer.hasPointerCapture(event.pointerId)) {
+                    resizer.releasePointerCapture(event.pointerId);
+                }
+            };
+
+            resizer.addEventListener('pointerup', stopDragging);
+            resizer.addEventListener('pointercancel', stopDragging);
+        }
 
         function escapeHtml(text) {
             return text.replace(/&/g, '&amp;')
@@ -120,47 +217,297 @@
         }
 
         // No highlightJS for the editor itself; only used for preview formatting
-        function highlightJS(code) {
-            // Very basic JS syntax highlighting for preview only
+        function highlightJS(code, colors) {
+            const palette = colors || getThemeStyles().syntax;
+            const structureKeywords = new Set(['for','while','switch','case','break','continue','return','if','else','do','try','catch','finally','throw','default']);
+            const declarationKeywords = new Set(['let','const','var','function','class','extends','import','export','from','as','new','this','super','typeof','instanceof','delete','in','of','await','yield']);
+            const reservedKeywords = new Set([...structureKeywords, ...declarationKeywords, 'async']);
+            const literalBracketLeadChars = new Set(['=','(','[','{',':',',']);
+
+            const placeholders = [];
+            const PLACEHOLDER_PREFIX = '__PLACEHOLDER__';
+
+            function stash(value) {
+                const id = PLACEHOLDER_PREFIX + placeholders.length + '__';
+                placeholders.push(value);
+                return id;
+            }
+
+            function restoreFromIndex(text, startIndex) {
+                const pattern = new RegExp(`${PLACEHOLDER_PREFIX}(\\d+)__`, 'g');
+                return text.replace(pattern, (match, idx) => {
+                    const index = Number(idx);
+                    if (index >= startIndex) {
+                        return placeholders[index];
+                    }
+                    return match;
+                });
+            }
+
+            function protectSpans(text) {
+                const startIndex = placeholders.length;
+                const stripped = text.replace(/<span[^>]*>.*?<\/span>/g, match => stash(match));
+                return { text: stripped, startIndex };
+            }
+
+            function colorParams(segment) {
+                return segment.replace(/([a-zA-Z_$][\w$]*)/g, token => {
+                    if (reservedKeywords.has(token) || token.startsWith(PLACEHOLDER_PREFIX)) {
+                        return token;
+                    }
+                    return `<span style="color:${palette.param};">${token}</span>`;
+                });
+            }
+
+            function isArrayLiteralContext(str, index) {
+                let j = index - 1;
+                while (j >= 0 && /\s/.test(str[j])) j--;
+                if (j < 0) {
+                    return true;
+                }
+
+                let char = str[j];
+
+                if (char === '>') {
+                    let k = j - 1;
+                    while (k >= 0 && /\s/.test(str[k])) k--;
+                    if (k >= 0 && str[k] === '=') {
+                        return true; // arrow function => [
+                    }
+                }
+
+                if (char === '?') {
+                    let k = j - 1;
+                    while (k >= 0 && /\s/.test(str[k])) k--;
+                    if (k >= 0 && str[k] === '.') {
+                        return false; // optional chaining obj?.[0]
+                    }
+                    return true; // ternary or nullish coalescing
+                }
+
+                if (literalBracketLeadChars.has(char)) {
+                    return true;
+                }
+
+                if (/[a-zA-Z0-9_$]/.test(char)) {
+                    let end = j;
+                    while (j >= 0 && /[a-zA-Z0-9_$]/.test(str[j])) j--;
+                    const word = str.slice(j + 1, end + 1);
+                    if (reservedKeywords.has(word)) {
+                        return true;
+                    }
+                    if (word.startsWith(PLACEHOLDER_PREFIX)) {
+                        return false;
+                    }
+                    return false;
+                }
+
+                return false;
+            }
+
+            function highlightArrayBrackets(text) {
+                const bracketColor = palette.bracket;
+                const stack = [];
+                let result = '';
+                for (let i = 0; i < text.length; i++) {
+                    const ch = text[i];
+                    if (ch === '[') {
+                        stack.push(bracketColor);
+                        result += `<span style="color:${bracketColor};">[</span>`;
+                    } else if (ch === ']') {
+                        const color = stack.length ? stack.pop() : bracketColor;
+                        result += `<span style="color:${color};">]</span>`;
+                    } else {
+                        result += ch;
+                    }
+                }
+                return result;
+            }
+
+            // Preserve strings and comments before other replacements
+            code = code.replace(/(`(?:\\.|[^`])*`|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*')/g, match => stash(`<span style="color:${palette.string};">${escapeHtml(match)}</span>`));
+            code = code.replace(/(\/\/[^\n]*|\/\*[\s\S]*?\*\/)/g, match => stash(`<span style="color:${palette.comment};">${escapeHtml(match)}</span>`));
+
+            // Function declarations (async optional, name optional)
+            code = code.replace(/((?:async\s+)?function)(\s*)([a-zA-Z_$][\w$]*)?(\s*\()([^)]*)(\))/g, (match, fnKeyword, space, name, openParen, params, closeParen) => {
+                let result = fnKeyword + space;
+                if (name) {
+                    result += `<span style="color:${palette.functionDeclaration};">${name}</span>`;
+                }
+                result += openParen + colorParams(params) + closeParen;
+                return result;
+            });
+
+            // Arrow functions with parenthesized parameters
+            code = code.replace(/(\()([^)]*)(\)\s*=>)/g, (match, open, params, suffix) => {
+                return open + colorParams(params) + suffix;
+            });
+
+            // Single-parameter arrow functions
+            code = code.replace(/\b([a-zA-Z_$][\w$]*)(\s*=>)/g, (match, param, arrowPart) => {
+                if (reservedKeywords.has(param) || param.startsWith(PLACEHOLDER_PREFIX)) {
+                    return match;
+                }
+                return `<span style="color:${palette.param};">${param}</span>${arrowPart}`;
+            });
+
+            // Function call / method names
+            code = code.replace(/\b([a-zA-Z_$][\w$]*)\s*(?=\()/g, (match, name) => {
+                if (reservedKeywords.has(name) || name.startsWith(PLACEHOLDER_PREFIX)) {
+                    return match;
+                }
+                return `<span style="color:${palette.functionCall};">${name}</span>`;
+            });
+
+            // Boolean literals
+            code = code.replace(/\b(true|false)\b/g, `<span style="color:${palette.boolean};">$1</span>`);
+
+            // Numbers
+            code = code.replace(/\b\d+(?:\.\d+)?\b/g, match => `<span style="color:${palette.number};">${match}</span>`);
+
+            // Array literal vs index brackets
+            const bracketSnapshot = protectSpans(code);
+            const bracketProcessed = highlightArrayBrackets(bracketSnapshot.text);
+            code = restoreFromIndex(bracketProcessed, bracketSnapshot.startIndex);
+
+            // Structure keywords coloring
+            const structureRegex = new RegExp(`\\b(${Array.from(structureKeywords).join('|')})\\b`, 'g');
+            code = code.replace(structureRegex, `<span style="color:${palette.structure};">$1</span>`);
+
+            // Declaration keywords coloring
+            const declarationRegex = new RegExp(`\\b(${Array.from(declarationKeywords).join('|')})\\b`, 'g');
+            code = code.replace(declarationRegex, `<span style="color:${palette.declaration};">$1</span>`);
+
+            // Variable names (identifiers not already styled)
+            const protectedSpans = protectSpans(code);
+            code = protectedSpans.text.replace(/\b([a-zA-Z_$][\w$]*)\b/g, (match, ident, offset, str) => {
+                if (ident.startsWith(PLACEHOLDER_PREFIX)) {
+                    return ident;
+                }
+                if (reservedKeywords.has(ident) || ident === 'true' || ident === 'false') {
+                    return ident;
+                }
+                const prevChar = offset > 0 ? str[offset - 1] : '';
+                if (prevChar === '&') {
+                    // Avoid breaking HTML entities like &lt;
+                    return ident;
+                }
+                return `<span style="color:${palette.variable};">${ident}</span>`;
+            });
+            code = restoreFromIndex(code, protectedSpans.startIndex);
+
+            const finalProtection = protectSpans(code);
+            code = escapeHtml(finalProtection.text);
+            code = restoreFromIndex(code, finalProtection.startIndex);
+
+            // Restore preserved segments (strings, comments, etc.)
+            code = restoreFromIndex(code, 0);
+
             return code;
-                //.replace(/(\bfunction\b|\blet\b|\bconst\b|\bvar\b|\breturn\b|\bif\b|\belse\b|\bfor\b|\bwhile\b|\bnew\b|\bthis\b|\bclass\b|\bconstructor\b|\bextends\b|\bsuper\b|\bimport\b|\bfrom\b|\bas\b|\bexport\b|\bdefault\b|\btry\b|\bcatch\b|\bfinally\b|\btypeof\b|\binstanceof\b|\bbreak\b|\bcontinue\b|\bswitch\b|\bcase\b|\bthrow\b|\bdelete\b|\bin\b|\bof\b)/g, '<span style="color:#569cd6;">$1</span>')
-               // .replace(/("[^"]*"|'[^']*'|`[^`]*`)/g, '<span style="color:#ce9178;">$1</span>')
-                //.replace(/(\/\/.*)/g, '<span style="color:#6a9955;">$1</span>')
-                //.replace(/\b([0-9]+)\b/g, '<span style="color:#b5cea8;">$1</span>')
-              //  .replace(/([a-zA-Z_$][a-zA-Z0-9_$]*)\s*\(/g, '<span style="color:#dcdcaa;">$1</span>(')
-                //.replace(/([a-zA-Z_$][a-zA-Z0-9_$]*)/g, function(match) {
-                //     if (["let","const","var","function","return","if","else","for","while","new","this","class","constructor","extends","super","import","from","as","export","default","try","catch","finally","typeof","instanceof","break","continue","switch","case","throw","delete","in","of"].includes(match)) return match;
-                //     return '<span style="color:#9cdcfe;">' + match + '</span>';
-                // });
+        }
+
+        function getThemeStyles() {
+            if (darkModeToggle.checked) {
+                return {
+                    container: 'margin: 20px 0; border-radius: 10px; overflow: hidden; box-shadow: 0 10px 25px rgba(0,0,0,.22); border: 1px solid rgba(255,255,255,.08); background: #1e1e1e; color: #d4d4d4;',
+                    header: 'display: flex; align-items: center; justify-content: flex-start; background: #1f2430; padding: 8px 12px; border-bottom: 1px solid rgba(255,255,255,.08); font-family: ui-sans-serif,system-ui,-apple-system,\'Segoe UI\',Roboto,Inter,Arial,sans-serif; font-size: 13px; color: #c7c7c7;',
+                    codeBackground: '#1e1e1e',
+                    imageBackground: '#1b1e27',
+                    dividerBorder: '1px solid rgba(255,255,255,.08)',
+                    consoleBackground: '#0d1f0d',
+                    consoleText: '#23db35',
+                    consoleBorder: '1px solid rgba(255,255,255,.08)',
+                    syntax: {
+                        string: '#ce9178',
+                        comment: '#6a9955',
+                        functionDeclaration: '#dcdcaa',
+                        functionCall: '#dcdcaa',
+                        param: '#9cdcfe',
+                        boolean: '#4d9cd6',
+                        number: '#a4caa5',
+                        variable: '#9bdbfd',
+                        structure: '#c586c0',
+                        declaration: '#569cd6',
+                        bracket: '#ffd700'
+                    }
+                };
+            }
+            return {
+                container: 'margin: 20px 0; border-radius: 10px; overflow: hidden; box-shadow: 0 8px 18px rgba(0,0,0,.12); border: 1px solid rgba(0,0,0,.16); background: #ffffff; color: #1f1f1f;',
+                header: 'display: flex; align-items: center; justify-content: flex-start; background: #f2f2f2; padding: 8px 12px; border-bottom: 1px solid rgba(0,0,0,.12); font-family: ui-sans-serif,system-ui,-apple-system,\'Segoe UI\',Roboto,Inter,Arial,sans-serif; font-size: 13px; color: #333;',
+                codeBackground: '#ffffff',
+                imageBackground: '#f8f8f8',
+                dividerBorder: '1px solid rgba(0,0,0,.08)',
+                consoleBackground: '#f5f5f5',
+                consoleText: '#0a6c0a',
+                consoleBorder: '1px solid rgba(0,0,0,.12)',
+                syntax: {
+                    string: '#a31515',
+                    comment: '#008000',
+                    functionDeclaration: '#795E26',
+                    functionCall: '#795E26',
+                    param: '#0072c6',
+                    boolean: '#0000ff',
+                    number: '#098658',
+                    variable: '#001080',
+                    structure: '#af00db',
+                    declaration: '#0000ff',
+                    bracket: '#af00db'
+                }
+            };
+        }
+
+        function applyConsoleTheme() {
+            const theme = getThemeStyles();
+            consoleOutput.style.background = theme.consoleBackground;
+            consoleOutput.style.color = theme.consoleText;
+            consoleOutput.style.borderTop = theme.consoleBorder;
         }
 
         function formatToHtml(code) {
             // Format JS code into HTML like the example
+            const theme = getThemeStyles();
             let lines = code.split(/\r?\n/);
-            let html = '<div style="margin: 20px 0; border-radius: 10px; overflow: hidden; box-shadow: 0 10px 25px rgba(0,0,0,.22); border: 1px solid rgba(255,255,255,.08); background: #1e1e1e; color: #d4d4d4;">';
-            html += '<div style="display: flex; align-items: center; justify-content: flex-start; background: #1f2430; padding: 8px 12px; border-bottom: 1px solid rgba(255,255,255,.08); font-family: ui-sans-serif,system-ui,-apple-system,\'Segoe UI\',Roboto,Inter,Arial,sans-serif; font-size: 13px; color: #c7c7c7;"><span style="opacity: .9;">filename.js</span></div>';
-            html += '<div style="font-family: ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,\'Liberation Mono\',\'Courier New\',monospace; font-size: 14px; line-height: 1.55; background: #1e1e1e; display: flex;">';
+            let html = `<div style="${theme.container}">`;
+            if (filenameToggle.checked) {
+                html += `<div style="${theme.header}"><span style="opacity: .9;">filename.js</span></div>`;
+            }
+            html += `<div style="font-family: ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,\'Liberation Mono\',\'Courier New\',monospace; font-size: 14px; line-height: 1.55; background: ${theme.codeBackground}; display: flex;">`;
             html += '<div style="flex: 1; min-width: 0;">';
-            html += '<ol style="margin: 0; padding: 12px 16px 12px 48px; list-style: decimal; background: #1e1e1e;">';
+            html += `<ol style="margin: 0; padding: 12px 16px 12px 48px; list-style: decimal; background: ${theme.codeBackground};">`;
             for (let line of lines) {
-                let safe = escapeHtml(line);
-                let highlighted = highlightJS(safe);
-                html += `<li style="white-space: pre;">${highlighted}</li>`;
+                let highlighted = highlightJS(line, theme.syntax);
+                html += `<li style="white-space: pre-wrap; word-break: break-word; overflow-wrap: anywhere;">${highlighted}</li>`;
             }
             html += '</ol></div>';
             if (imgPreview.checked) {
-                html += `<div style="width: 45%; max-width: 480px; border-left: 1px solid rgba(255,255,255,.08); background: #1b1e27; display: flex; align-items: center; justify-content: center; padding: 12px;"><div><div style="font-size: 12px; letter-spacing: .3px; margin-bottom: 6px; opacity: .9;">IMAGE</div></div></div>`;
+                html += `<div style="width: 45%; max-width: 480px; border-left: ${theme.dividerBorder}; background: ${theme.imageBackground}; display: flex; align-items: center; justify-content: center; padding: 12px;"><div><div style="font-size: 12px; letter-spacing: .3px; margin-bottom: 6px; opacity: .9;">IMAGE</div></div></div>`;
             }
             html += '</div>';
             if (consoleToggle.checked) {
-                html += `<div style="background: #0d1f0d; padding: 10px 14px; border-top: 1px solid rgba(255,255,255,.08); font-family: ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,\'Liberation Mono\',\'Courier New\',monospace; font-size: 13px; line-height: 1.5; color: #23db35;"><div>[LOG]:</div><div>[ERROR]:</div></div>`;
+                html += `<div style="background: ${theme.consoleBackground}; padding: 10px 14px; border-top: ${theme.consoleBorder}; font-family: ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,\'Liberation Mono\',\'Courier New\',monospace; font-size: 13px; line-height: 1.5; color: ${theme.consoleText};"><div>[LOG]:</div><div>[ERROR]:</div></div>`;
             }
             html += '</div>';
             return html;
         }
 
+        function isPlaceholderActive() {
+            return editor.classList.contains('placeholder-text');
+        }
+
+        function ensurePlaceholder() {
+            if (!editor.textContent.trim()) {
+                editor.textContent = '// Paste your JavaScript code here and click Format';
+                editor.classList.add('placeholder-text');
+            }
+        }
+
         function updatePreview() {
             let content = editor.innerText || editor.textContent;
+            if (isPlaceholderActive()) {
+                preview.innerHTML = '';
+                return;
+            }
             // If it looks like JS code, format it
             if (/function|let|const|var|=>|return|class|for|while|if|else|switch|case|break|continue|try|catch|finally/.test(content)) {
                 preview.innerHTML = formatToHtml(content);
@@ -172,32 +519,59 @@
         function logToConsole(msg) {
             if (consoleToggle.checked) {
                 consoleOutput.style.display = 'block';
+                applyConsoleTheme();
                 consoleOutput.textContent = msg;
             } else {
                 consoleOutput.style.display = 'none';
             }
         }
 
-        editor.addEventListener('input', () => {
-            updatePreview();
-            logToConsole('Content updated.');
+        editor.addEventListener('focus', () => {
+            if (isPlaceholderActive()) {
+                editor.textContent = '';
+                editor.classList.remove('placeholder-text');
+                preview.innerHTML = '';
+            }
         });
-        imgPreview.addEventListener('change', updatePreview);
+
+        editor.addEventListener('blur', () => {
+            if (!editor.textContent.trim()) {
+                ensurePlaceholder();
+                updatePreview();
+            }
+        });
+
+        editor.addEventListener('input', () => {
+            editor.classList.remove('placeholder-text');
+            updatePreview();
+        });
+        const refreshPreview = () => {
+            updatePreview();
+        };
+
+        imgPreview.addEventListener('change', refreshPreview);
+        filenameToggle.addEventListener('change', refreshPreview);
         consoleToggle.addEventListener('change', () => {
             updatePreview();
             if (consoleToggle.checked) {
                 consoleOutput.style.display = 'block';
+                applyConsoleTheme();
             } else {
                 consoleOutput.style.display = 'none';
             }
+        });
+        darkModeToggle.addEventListener('change', () => {
+            applyConsoleTheme();
+            updatePreview();
         });
         formatBtn.addEventListener('click', () => {
             updatePreview();
             logToConsole('Formatted to HTML.');
         });
 
-        // Initial preview
-        updatePreview();
+        ensurePlaceholder();
+        preview.innerHTML = '';
+        applyConsoleTheme();
     </script>
 </body>
 </html>
