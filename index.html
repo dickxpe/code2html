@@ -1,0 +1,203 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rich Text Editor with Preview</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background: #f4f4f4;
+        }
+        .toolbar {
+            display: flex;
+            align-items: center;
+            background: #222;
+            color: #fff;
+            padding: 10px 20px;
+        }
+        .toolbar button {
+            margin-right: 20px;
+            padding: 8px 16px;
+            background: #4CAF50;
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        .toolbar label {
+            margin-right: 15px;
+            font-size: 15px;
+            cursor: pointer;
+        }
+        .container {
+            display: flex;
+            height: calc(100vh - 50px);
+        }
+        .editor-pane, .preview-pane {
+            flex: 1;
+            padding: 20px;
+            background: #fff;
+            box-sizing: border-box;
+            overflow: auto;
+        }
+        .editor-pane {
+            border-right: 1px solid #ddd;
+        }
+        .rich-editor {
+            width: 100%;
+            height: 100%;
+            min-height: 400px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            padding: 10px;
+            background: #fafafa;
+            font-size: 16px;
+            outline: none;
+            color: #222;
+            font-family: monospace;
+            /* No syntax highlighting or color styling */
+        }
+        .console-output {
+            background: #222;
+            color: #0f0;
+            padding: 10px;
+            margin-top: 10px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 14px;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="toolbar">
+        <button id="formatBtn">Format</button>
+        <label><input type="checkbox" id="imgPreview"> Image Preview</label>
+        <label><input type="checkbox" id="consoleToggle"> Console</label>
+         <label><input type="checkbox" id="darkModeToggle" checked> Dark Mode</label>
+    </div>
+    <div class="container">
+        <div class="editor-pane">
+            <div id="editor" class="rich-editor" contenteditable="true" spellcheck="false">
+// Paste your JavaScript code here and click Format
+            </div>
+            <div id="console" class="console-output"></div>
+        </div>
+        <div class="preview-pane" id="preview"></div>
+    </div>
+    <script>
+        const editor = document.getElementById('editor');
+                // Remove color and background-color styles from pasted content
+                editor.addEventListener('paste', function(e) {
+                    e.preventDefault();
+                    let text = '';
+                    if (e.clipboardData) {
+                        // Try to get plain text
+                        text = e.clipboardData.getData('text/plain');
+                    } else if (window.clipboardData) {
+                        text = window.clipboardData.getData('Text');
+                    }
+                    // Insert as plain text, stripping all formatting
+                    document.execCommand('insertText', false, text);
+                });
+        const preview = document.getElementById('preview');
+        const formatBtn = document.getElementById('formatBtn');
+        const imgPreview = document.getElementById('imgPreview');
+        const consoleToggle = document.getElementById('consoleToggle');
+        const consoleOutput = document.getElementById('console');
+
+        function escapeHtml(text) {
+            return text.replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+
+        // No highlightJS for the editor itself; only used for preview formatting
+        function highlightJS(code) {
+            // Very basic JS syntax highlighting for preview only
+            return code;
+                //.replace(/(\bfunction\b|\blet\b|\bconst\b|\bvar\b|\breturn\b|\bif\b|\belse\b|\bfor\b|\bwhile\b|\bnew\b|\bthis\b|\bclass\b|\bconstructor\b|\bextends\b|\bsuper\b|\bimport\b|\bfrom\b|\bas\b|\bexport\b|\bdefault\b|\btry\b|\bcatch\b|\bfinally\b|\btypeof\b|\binstanceof\b|\bbreak\b|\bcontinue\b|\bswitch\b|\bcase\b|\bthrow\b|\bdelete\b|\bin\b|\bof\b)/g, '<span style="color:#569cd6;">$1</span>')
+               // .replace(/("[^"]*"|'[^']*'|`[^`]*`)/g, '<span style="color:#ce9178;">$1</span>')
+                //.replace(/(\/\/.*)/g, '<span style="color:#6a9955;">$1</span>')
+                //.replace(/\b([0-9]+)\b/g, '<span style="color:#b5cea8;">$1</span>')
+              //  .replace(/([a-zA-Z_$][a-zA-Z0-9_$]*)\s*\(/g, '<span style="color:#dcdcaa;">$1</span>(')
+                //.replace(/([a-zA-Z_$][a-zA-Z0-9_$]*)/g, function(match) {
+                //     if (["let","const","var","function","return","if","else","for","while","new","this","class","constructor","extends","super","import","from","as","export","default","try","catch","finally","typeof","instanceof","break","continue","switch","case","throw","delete","in","of"].includes(match)) return match;
+                //     return '<span style="color:#9cdcfe;">' + match + '</span>';
+                // });
+        }
+
+        function formatToHtml(code) {
+            // Format JS code into HTML like the example
+            let lines = code.split(/\r?\n/);
+            let html = '<div style="margin: 20px 0; border-radius: 10px; overflow: hidden; box-shadow: 0 10px 25px rgba(0,0,0,.22); border: 1px solid rgba(255,255,255,.08); background: #1e1e1e; color: #d4d4d4;">';
+            html += '<div style="display: flex; align-items: center; justify-content: flex-start; background: #1f2430; padding: 8px 12px; border-bottom: 1px solid rgba(255,255,255,.08); font-family: ui-sans-serif,system-ui,-apple-system,\'Segoe UI\',Roboto,Inter,Arial,sans-serif; font-size: 13px; color: #c7c7c7;"><span style="opacity: .9;">filename.js</span></div>';
+            html += '<div style="font-family: ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,\'Liberation Mono\',\'Courier New\',monospace; font-size: 14px; line-height: 1.55; background: #1e1e1e; display: flex;">';
+            html += '<div style="flex: 1; min-width: 0;">';
+            html += '<ol style="margin: 0; padding: 12px 16px 12px 48px; list-style: decimal; background: #1e1e1e;">';
+            for (let line of lines) {
+                let safe = escapeHtml(line);
+                let highlighted = highlightJS(safe);
+                html += `<li style="white-space: pre;">${highlighted}</li>`;
+            }
+            html += '</ol></div>';
+            if (imgPreview.checked) {
+                html += `<div style="width: 45%; max-width: 480px; border-left: 1px solid rgba(255,255,255,.08); background: #1b1e27; display: flex; align-items: center; justify-content: center; padding: 12px;"><div><div style="font-size: 12px; letter-spacing: .3px; margin-bottom: 6px; opacity: .9;">IMAGE</div></div></div>`;
+            }
+            html += '</div>';
+            if (consoleToggle.checked) {
+                html += `<div style="background: #0d1f0d; padding: 10px 14px; border-top: 1px solid rgba(255,255,255,.08); font-family: ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,\'Liberation Mono\',\'Courier New\',monospace; font-size: 13px; line-height: 1.5; color: #23db35;"><div>[LOG]:</div><div>[ERROR]:</div></div>`;
+            }
+            html += '</div>';
+            return html;
+        }
+
+        function updatePreview() {
+            let content = editor.innerText || editor.textContent;
+            // If it looks like JS code, format it
+            if (/function|let|const|var|=>|return|class|for|while|if|else|switch|case|break|continue|try|catch|finally/.test(content)) {
+                preview.innerHTML = formatToHtml(content);
+            } else {
+                preview.innerHTML = content;
+            }
+        }
+
+        function logToConsole(msg) {
+            if (consoleToggle.checked) {
+                consoleOutput.style.display = 'block';
+                consoleOutput.textContent = msg;
+            } else {
+                consoleOutput.style.display = 'none';
+            }
+        }
+
+        editor.addEventListener('input', () => {
+            updatePreview();
+            logToConsole('Content updated.');
+        });
+        imgPreview.addEventListener('change', updatePreview);
+        consoleToggle.addEventListener('change', () => {
+            updatePreview();
+            if (consoleToggle.checked) {
+                consoleOutput.style.display = 'block';
+            } else {
+                consoleOutput.style.display = 'none';
+            }
+        });
+        formatBtn.addEventListener('click', () => {
+            updatePreview();
+            logToConsole('Formatted to HTML.');
+        });
+
+        // Initial preview
+        updatePreview();
+    </script>
+</body>
+</html>

@@ -1,0 +1,23 @@
+<li style="white-space: pre;"><span style="color: #569cd6;">let</span>&nbsp;<span style="color: #9cdcfe;">xPositions</span>&nbsp;=&nbsp;[];</li>
+<li style="white-space: pre;"><span style="color: #569cd6;">let</span>&nbsp;<span style="color: #9cdcfe;">yPositions</span>&nbsp;=&nbsp;[];</li>
+<li style="white-space: pre;"><span style="color: #569cd6;">let</span>&nbsp;<span style="color: #9cdcfe;">colors</span>&nbsp;=&nbsp;[];</li>
+<li style="white-space: pre;"></li>
+<li style="white-space: pre;"><span style="color: #569cd6;">function</span>&nbsp;<span style="color: #dcdcaa;">setup</span>()&nbsp;{</li>
+<li style="white-space: pre;">&nbsp;&nbsp;&nbsp;&nbsp;<span style="color: #9cdcfe;">colorMode</span>(<span style="color: #ce9178;">HSB</span>);</li>
+<li style="white-space: pre;">&nbsp;&nbsp;&nbsp;&nbsp;<span style="color: #9cdcfe;">createCanvas</span>(<span style="color: #9cdcfe;">windowWidth</span>,&nbsp;<span style="color: #9cdcfe;">windowHeight</span>);</li>
+<li style="white-space: pre;">&nbsp;&nbsp;&nbsp;&nbsp;<span style="color: #c586c0;">for</span>&nbsp;(<span style="color: #569cd6;">let</span>&nbsp;<span style="color: #9cdcfe;">i</span>&nbsp;=&nbsp;<span style="color: #b5cea8;">0</span>;&nbsp;<span style="color: #9cdcfe;">i</span>&nbsp;&lt;&nbsp;<span style="color: #b5cea8;">1000</span>;&nbsp;<span style="color: #9cdcfe;">i</span>++)&nbsp;{</li>
+<li style="white-space: pre;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color: #9cdcfe;">xPositions</span>[<span style="color: #9cdcfe;">i</span>]&nbsp;=&nbsp;<span style="color: #9cdcfe;">random</span>(<span style="color: #b5cea8;">0</span>,&nbsp;<span style="color: #9cdcfe;">width</span>);</li>
+<li style="white-space: pre;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color: #9cdcfe;">yPositions</span>[<span style="color: #9cdcfe;">i</span>]&nbsp;=&nbsp;<span style="color: #9cdcfe;">random</span>(<span style="color: #b5cea8;">0</span>,&nbsp;<span style="color: #9cdcfe;">height</span>);</li>
+<li style="white-space: pre;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color: #9cdcfe;">colors</span>[<span style="color: #9cdcfe;">i</span>]&nbsp;=&nbsp;<span style="color: #9cdcfe;">random</span>(<span style="color: #b5cea8;">0</span>,&nbsp;<span style="color: #b5cea8;">360</span>);</li>
+<li style="white-space: pre;">&nbsp;&nbsp;&nbsp;&nbsp;}</li>
+<li style="white-space: pre;">&nbsp;&nbsp;&nbsp;&nbsp;<span style="color: #9cdcfe;">drawGhost</span>(<span style="color: #9cdcfe;">width</span>&nbsp;/&nbsp;<span style="color: #b5cea8;">2</span>,&nbsp;<span style="color: #9cdcfe;">height</span>&nbsp;/&nbsp;<span style="color: #b5cea8;">2</span>,&nbsp;<span style="color: #b5cea8;">0</span>);</li>
+<li style="white-space: pre;">}</li>
+<li style="white-space: pre;"></li>
+<li style="white-space: pre;"><span style="color: #569cd6;">function</span>&nbsp;<span style="color: #dcdcaa;">draw</span>()&nbsp;{</li>
+<li style="white-space: pre;">&nbsp;&nbsp;&nbsp;&nbsp;<span style="color: #9cdcfe;">background</span>(<span style="color: #ce9178;">"black"</span>);</li>
+<li style="white-space: pre;">&nbsp;&nbsp;&nbsp;&nbsp;<span style="color: #c586c0;">for</span>&nbsp;(<span style="color: #569cd6;">let</span>&nbsp;<span style="color: #9cdcfe;">i</span>&nbsp;=&nbsp;<span style="color: #b5cea8;">0</span>;&nbsp;<span style="color: #9cdcfe;">i</span>&nbsp;&lt;&nbsp;<span style="color: #9cdcfe;">xPositions</span>.<span style="color: #9cdcfe;">length</span>;&nbsp;<span style="color: #9cdcfe;">i</span>++)&nbsp;{</li>
+<li style="white-space: pre;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color: #9cdcfe;">drawGhost</span>(<span style="color: #9cdcfe;">xPositions</span>[<span style="color: #9cdcfe;">i</span>],&nbsp;<span style="color: #9cdcfe;">yPositions</span>[<span style="color: #9cdcfe;">i</span>],&nbsp;<span style="color: #9cdcfe;">colors</span>[<span style="color: #9cdcfe;">i</span>]);</li>
+<li style="white-space: pre;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color: #9cdcfe;">xPositions</span>[<span style="color: #9cdcfe;">i</span>]&nbsp;+=&nbsp;<span style="color: #9cdcfe;">random</span>(-<span style="color: #b5cea8;">2</span>,&nbsp;<span style="color: #b5cea8;">2</span>);</li>
+<li style="white-space: pre;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color: #9cdcfe;">yPositions</span>[<span style="color: #9cdcfe;">i</span>]&nbsp;+=&nbsp;<span style="color: #9cdcfe;">random</span>(-<span style="color: #b5cea8;">2</span>,&nbsp;<span style="color: #b5cea8;">2</span>);</li>
+<li style="white-space: pre;">&nbsp;&nbsp;&nbsp;&nbsp;}</li>
+<li style="white-space: pre;">}</li>
