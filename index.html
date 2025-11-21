@@ -68,6 +68,8 @@
             padding: 4px 20px 20px;
             overflow-wrap: anywhere;
             word-break: break-word;
+            position: relative;
+            overflow: visible;
         }
         .preview-pane:focus-within {
             outline: none;
@@ -108,18 +110,57 @@
             min-height: 0;
             overflow: auto;
         }
+        .copy-icon {
+            margin-left: auto;
+            margin-right: 0;
+            border: none;
+            background: rgba(0,0,0,0.1);
+            padding: 6px;
+            border-radius: 4px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            transition: background 0.2s ease;
+        }
+        .copy-icon:hover {
+            background: #1a73e8;
+        }
+        .copy-icon img {
+            width: 18px;
+            height: 18px;
+            display: block;
+            transition: filter 0.2s ease;
+        }
+        .copy-icon:hover img {
+            filter: brightness(0) invert(1);
+        }
+        .copy-icon[data-copied="true"]::after {
+            content: 'Copied!';
+            position: absolute;
+            top: 50%;
+            right: calc(100% + 8px);
+            transform: translateY(-50%);
+            background: rgba(0,0,0,0.85);
+            color: #fff;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            white-space: nowrap;
+            opacity: 0;
+            animation: copyFade 1.3s ease forwards;
+            pointer-events: none;
+        }
+
+        @keyframes copyFade {
+            0% { opacity: 0; transform: translate(-6px, -50%); }
+            10% { opacity: 1; transform: translate(0, -50%); }
+            80% { opacity: 1; transform: translate(0, -50%); }
+            100% { opacity: 0; transform: translate(6px, -50%); }
+        }
         .placeholder-text {
             color: #999;
-        }
-        .console-output {
-            background: #222;
-            color: #0f0;
-            padding: 10px;
-            margin-top: 10px;
-            border-radius: 4px;
-            font-family: monospace;
-            font-size: 14px;
-            display: none;
         }
     </style>
 </head>
@@ -130,13 +171,15 @@
         <label><input type="checkbox" id="consoleToggle"> Console</label>
         <label><input type="checkbox" id="filenameToggle" checked> Filename</label>
          <label><input type="checkbox" id="darkModeToggle" checked> Dark Mode</label>
+        <div id="copyIcon" class="copy-icon" role="button" tabindex="0" aria-label="Copy preview HTML">
+            <img src="images/copy.png" alt="Copy">
+        </div>
     </div>
     <div class="container" id="layoutContainer">
         <div class="editor-pane" id="editorPane">
             <div id="editor" class="rich-editor placeholder-text" contenteditable="true" spellcheck="false">
 // Paste your JavaScript code here and click Format
             </div>
-            <div id="console" class="console-output"></div>
         </div>
         <div class="resizer" id="resizer" aria-hidden="true"></div>
         <div class="preview-pane" id="previewPane">
@@ -169,6 +212,8 @@
         const editorPane = document.getElementById('editorPane');
         const previewPane = document.getElementById('previewPane');
         const resizer = document.getElementById('resizer');
+        const copyIcon = document.getElementById('copyIcon');
+        const htmlSanitizer = document.createElement('div');
 
         const MIN_PANE_WIDTH = 200;
         let isDraggingDivider = false;
@@ -305,25 +350,6 @@
                 return false;
             }
 
-            function highlightArrayBrackets(text) {
-                const bracketColor = palette.bracket;
-                const stack = [];
-                let result = '';
-                for (let i = 0; i < text.length; i++) {
-                    const ch = text[i];
-                    if (ch === '[') {
-                        stack.push(bracketColor);
-                        result += `<span style="color:${bracketColor};">[</span>`;
-                    } else if (ch === ']') {
-                        const color = stack.length ? stack.pop() : bracketColor;
-                        result += `<span style="color:${color};">]</span>`;
-                    } else {
-                        result += ch;
-                    }
-                }
-                return result;
-            }
-
             // Preserve strings and comments before other replacements
             code = code.replace(/(`(?:\\.|[^`])*`|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*')/g, match => stash(`<span style="color:${palette.string};">${escapeHtml(match)}</span>`));
             code = code.replace(/(\/\/[^\n]*|\/\*[\s\S]*?\*\/)/g, match => stash(`<span style="color:${palette.comment};">${escapeHtml(match)}</span>`));
@@ -365,11 +391,6 @@
             // Numbers
             code = code.replace(/\b\d+(?:\.\d+)?\b/g, match => `<span style="color:${palette.number};">${match}</span>`);
 
-            // Array literal vs index brackets
-            const bracketSnapshot = protectSpans(code);
-            const bracketProcessed = highlightArrayBrackets(bracketSnapshot.text);
-            code = restoreFromIndex(bracketProcessed, bracketSnapshot.startIndex);
-
             // Structure keywords coloring
             const structureRegex = new RegExp(`\\b(${Array.from(structureKeywords).join('|')})\\b`, 'g');
             code = code.replace(structureRegex, `<span style="color:${palette.structure};">$1</span>`);
@@ -403,7 +424,10 @@
             // Restore preserved segments (strings, comments, etc.)
             code = restoreFromIndex(code, 0);
 
-            return code;
+            htmlSanitizer.innerHTML = code;
+            const sanitized = htmlSanitizer.innerHTML;
+            htmlSanitizer.innerHTML = '';
+            return sanitized;
         }
 
         function getThemeStyles() {
@@ -427,8 +451,7 @@
                         number: '#a4caa5',
                         variable: '#9bdbfd',
                         structure: '#c586c0',
-                        declaration: '#569cd6',
-                        bracket: '#ffd700'
+                        declaration: '#569cd6'
                     }
                 };
             }
@@ -451,44 +474,216 @@
                     number: '#098658',
                     variable: '#001080',
                     structure: '#af00db',
-                    declaration: '#0000ff',
-                    bracket: '#af00db'
+                    declaration: '#0000ff'
                 }
             };
         }
 
         function applyConsoleTheme() {
+            if (!consoleOutput) {
+                return;
+            }
             const theme = getThemeStyles();
             consoleOutput.style.background = theme.consoleBackground;
             consoleOutput.style.color = theme.consoleText;
             consoleOutput.style.borderTop = theme.consoleBorder;
         }
 
+        function applyCopyButtonTheme() {
+            if (!copyIcon) {
+                return;
+            }
+            const iconImg = copyIcon.querySelector('img');
+            copyIcon.style.removeProperty('--copy-icon-bg');
+            copyIcon.style.removeProperty('--copy-icon-hover-bg');
+            copyIcon.style.removeProperty('--copy-icon-border');
+            if (iconImg) {
+                iconImg.style.filter = 'none';
+            }
+        }
+
+        function copyTextFallback(text) {
+            return new Promise((resolve, reject) => {
+                const previousActive = document.activeElement;
+                const textarea = document.createElement('textarea');
+                textarea.value = text;
+                textarea.setAttribute('readonly', '');
+                textarea.style.position = 'absolute';
+                textarea.style.left = '-9999px';
+                document.body.appendChild(textarea);
+                textarea.select();
+                try {
+                    const successful = document.execCommand('copy');
+                    document.body.removeChild(textarea);
+                    if (previousActive && typeof previousActive.focus === 'function') {
+                        previousActive.focus();
+                    }
+                    if (successful) {
+                        resolve();
+                    } else {
+                        reject(new Error('Copy command unsuccessful'));
+                    }
+                } catch (err) {
+                    document.body.removeChild(textarea);
+                    if (previousActive && typeof previousActive.focus === 'function') {
+                        previousActive.focus();
+                    }
+                    reject(err);
+                }
+            });
+        }
+
+        function copyPreviewHtml() {
+            const html = normalizePreviewHtml(preview.innerHTML);
+            if (!html) {
+                return Promise.resolve();
+            }
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                return navigator.clipboard.writeText(html).catch(() => copyTextFallback(html));
+            }
+            return copyTextFallback(html);
+        }
+
+        function normalizePreviewHtml(html) {
+            if (!html) {
+                return '';
+            }
+            return html
+                .replace(/\s*<\/li>\s*(?=<li)/g, '</li>\n')
+                .replace(/\s*<\/div>\s*(?=<div)/g, '</div>\n')
+                .replace(/\s*<\/ol>\s*(?=<\/div>)/g, '</ol>\n');
+        }
+
         function formatToHtml(code) {
             // Format JS code into HTML like the example
             const theme = getThemeStyles();
             let lines = code.split(/\r?\n/);
-            let html = `<div style="${theme.container}">`;
-            if (filenameToggle.checked) {
-                html += `<div style="${theme.header}"><span style="opacity: .9;">filename.js</span></div>`;
+            while (lines.length > 1 && lines[lines.length - 1] === '') {
+                lines.pop();
             }
-            html += `<div style="font-family: ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,\'Liberation Mono\',\'Courier New\',monospace; font-size: 14px; line-height: 1.55; background: ${theme.codeBackground}; display: flex;">`;
-            html += '<div style="flex: 1; min-width: 0;">';
-            html += `<ol style="margin: 0; padding: 12px 16px 12px 48px; list-style: decimal; background: ${theme.codeBackground};">`;
+            if (lines.length === 0) {
+                lines = [''];
+            }
+
+            const card = document.createElement('div');
+            card.dataset.role = 'code-card';
+            card.style.cssText = theme.container;
+
+            const filenameBar = document.createElement('div');
+            filenameBar.dataset.role = 'filename';
+            filenameBar.style.cssText = theme.header;
+            filenameBar.style.display = filenameToggle.checked ? 'flex' : 'none';
+            const filenameLabel = document.createElement('span');
+            filenameLabel.dataset.role = 'filename-label';
+            filenameLabel.style.opacity = '.9';
+            filenameLabel.textContent = 'filename.js';
+            filenameBar.appendChild(filenameLabel);
+            card.appendChild(filenameBar);
+
+            const codeRegion = document.createElement('div');
+            codeRegion.dataset.role = 'code-row';
+            codeRegion.style.cssText = `font-family: ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,'Liberation Mono','Courier New',monospace; font-size: 14px; line-height: 1.55; background: ${theme.codeBackground}; display: flex;`;
+            card.appendChild(codeRegion);
+
+            const codeColumn = document.createElement('div');
+            codeColumn.dataset.role = 'code-column';
+            codeColumn.style.cssText = 'flex: 1; min-width: 0;';
+            codeRegion.appendChild(codeColumn);
+
+            const lineList = document.createElement('ol');
+            lineList.dataset.role = 'code-lines';
+            lineList.style.cssText = `margin: 0; padding: 12px 16px 12px 48px; list-style: decimal; background: ${theme.codeBackground};`;
+            codeColumn.appendChild(lineList);
+
             for (let line of lines) {
-                let highlighted = highlightJS(line, theme.syntax);
-                html += `<li style="white-space: pre-wrap; word-break: break-word; overflow-wrap: anywhere;">${highlighted}</li>`;
+                const li = document.createElement('li');
+                li.style.cssText = 'white-space: pre-wrap; word-break: break-word; overflow-wrap: anywhere;';
+                li.innerHTML = highlightJS(line, theme.syntax);
+                lineList.appendChild(li);
             }
-            html += '</ol></div>';
-            if (imgPreview.checked) {
-                html += `<div style="width: 45%; max-width: 480px; border-left: ${theme.dividerBorder}; background: ${theme.imageBackground}; display: flex; align-items: center; justify-content: center; padding: 12px;"><div><div style="font-size: 12px; letter-spacing: .3px; margin-bottom: 6px; opacity: .9;">IMAGE</div></div></div>`;
+
+            const imagePanel = document.createElement('div');
+            imagePanel.dataset.role = 'image';
+            imagePanel.style.cssText = `width: 45%; max-width: 480px; border-left: ${theme.dividerBorder}; background: ${theme.imageBackground}; display: ${imgPreview.checked ? 'flex' : 'none'}; align-items: center; justify-content: center; padding: 12px;`;
+            imagePanel.innerHTML = '<div><div style="font-size: 12px; letter-spacing: .3px; margin-bottom: 6px; opacity: .9;">IMAGE</div></div>';
+            codeRegion.appendChild(imagePanel);
+
+            const consolePanel = document.createElement('div');
+            consolePanel.dataset.role = 'console';
+            consolePanel.style.cssText = `background: ${theme.consoleBackground}; padding: 10px 14px; border-top: ${theme.consoleBorder}; font-family: ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,'Liberation Mono','Courier New',monospace; font-size: 13px; line-height: 1.5; color: ${theme.consoleText}; display: ${consoleToggle.checked ? 'block' : 'none'};`;
+            consolePanel.innerHTML = '<div>[LOG]:</div><div>[ERROR]:</div>';
+            card.appendChild(consolePanel);
+
+            return card;
+        }
+
+        function getPreviewCard() {
+            return preview.querySelector('[data-role="code-card"]');
+        }
+
+        function applyToggleVisibility() {
+            const card = getPreviewCard();
+            if (!card) {
+                return false;
             }
-            html += '</div>';
-            if (consoleToggle.checked) {
-                html += `<div style="background: ${theme.consoleBackground}; padding: 10px 14px; border-top: ${theme.consoleBorder}; font-family: ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,\'Liberation Mono\',\'Courier New\',monospace; font-size: 13px; line-height: 1.5; color: ${theme.consoleText};"><div>[LOG]:</div><div>[ERROR]:</div></div>`;
+            const filenameBar = card.querySelector('[data-role="filename"]');
+            if (filenameBar) {
+                filenameBar.style.display = filenameToggle.checked ? 'flex' : 'none';
             }
-            html += '</div>';
-            return html;
+            const imagePanel = card.querySelector('[data-role="image"]');
+            if (imagePanel) {
+                imagePanel.style.display = imgPreview.checked ? 'flex' : 'none';
+            }
+            const consolePanel = card.querySelector('[data-role="console"]');
+            if (consolePanel) {
+                consolePanel.style.display = consoleToggle.checked ? 'block' : 'none';
+            }
+            return true;
+        }
+
+        function applyThemeToPreview() {
+            const card = getPreviewCard();
+            if (!card) {
+                return false;
+            }
+            const theme = getThemeStyles();
+
+            card.style.cssText = theme.container;
+
+            const filenameBar = card.querySelector('[data-role="filename"]');
+            if (filenameBar) {
+                filenameBar.style.cssText = theme.header;
+                filenameBar.style.display = filenameToggle.checked ? 'flex' : 'none';
+            }
+
+            const codeRegion = card.querySelector('[data-role="code-row"]');
+            if (codeRegion) {
+                codeRegion.style.cssText = `font-family: ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,'Liberation Mono','Courier New',monospace; font-size: 14px; line-height: 1.55; background: ${theme.codeBackground}; display: flex;`;
+            }
+
+            const lineList = card.querySelector('[data-role="code-lines"]');
+            if (lineList) {
+                lineList.style.cssText = `margin: 0; padding: 12px 16px 12px 48px; list-style: decimal; background: ${theme.codeBackground};`;
+                const lines = Array.from(lineList.querySelectorAll('li'));
+                lines.forEach(li => {
+                    const text = li.textContent;
+                    li.innerHTML = highlightJS(text, theme.syntax);
+                });
+            }
+
+            const imagePanel = card.querySelector('[data-role="image"]');
+            if (imagePanel) {
+                imagePanel.style.cssText = `width: 45%; max-width: 480px; border-left: ${theme.dividerBorder}; background: ${theme.imageBackground}; display: ${imgPreview.checked ? 'flex' : 'none'}; align-items: center; justify-content: center; padding: 12px;`;
+            }
+
+            const consolePanel = card.querySelector('[data-role="console"]');
+            if (consolePanel) {
+                consolePanel.style.cssText = `background: ${theme.consoleBackground}; padding: 10px 14px; border-top: ${theme.consoleBorder}; font-family: ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,'Liberation Mono','Courier New',monospace; font-size: 13px; line-height: 1.5; color: ${theme.consoleText}; display: ${consoleToggle.checked ? 'block' : 'none'};`;
+            }
+
+            applyToggleVisibility();
+            applyCopyButtonTheme();
+            return true;
         }
 
         function isPlaceholderActive() {
@@ -505,24 +700,50 @@
         function updatePreview() {
             let content = editor.innerText || editor.textContent;
             if (isPlaceholderActive()) {
-                preview.innerHTML = '';
+                const card = formatToHtml('');
+                preview.replaceChildren(card);
+                applyToggleVisibility();
+                applyCopyButtonTheme();
                 return;
             }
             // If it looks like JS code, format it
             if (/function|let|const|var|=>|return|class|for|while|if|else|switch|case|break|continue|try|catch|finally/.test(content)) {
-                preview.innerHTML = formatToHtml(content);
-            } else {
-                preview.innerHTML = content;
-            }
-        }
+                const existingCard = getPreviewCard();
+                let savedFilename = null;
+                let savedConsole = null;
+                if (existingCard) {
+                    const existingFilename = existingCard.querySelector('[data-role="filename-label"]');
+                    if (existingFilename) {
+                        savedFilename = existingFilename.textContent;
+                    }
+                    const existingConsole = existingCard.querySelector('[data-role="console"]');
+                    if (existingConsole) {
+                        savedConsole = existingConsole.innerHTML;
+                    }
+                }
 
-        function logToConsole(msg) {
-            if (consoleToggle.checked) {
-                consoleOutput.style.display = 'block';
-                applyConsoleTheme();
-                consoleOutput.textContent = msg;
+                const card = formatToHtml(content);
+                if (savedFilename !== null) {
+                    const filenameLabel = card.querySelector('[data-role="filename-label"]');
+                    if (filenameLabel) {
+                        filenameLabel.textContent = savedFilename;
+                    }
+                }
+                if (savedConsole !== null) {
+                    const consolePanel = card.querySelector('[data-role="console"]');
+                    if (consolePanel) {
+                        consolePanel.innerHTML = savedConsole;
+                    }
+                }
+
+                preview.replaceChildren(card);
+                applyToggleVisibility();
+                applyCopyButtonTheme();
             } else {
-                consoleOutput.style.display = 'none';
+                const card = formatToHtml(content);
+                preview.replaceChildren(card);
+                applyToggleVisibility();
+                applyCopyButtonTheme();
             }
         }
 
@@ -530,7 +751,7 @@
             if (isPlaceholderActive()) {
                 editor.textContent = '';
                 editor.classList.remove('placeholder-text');
-                preview.innerHTML = '';
+                updatePreview();
             }
         });
 
@@ -545,14 +766,21 @@
             editor.classList.remove('placeholder-text');
             updatePreview();
         });
-        const refreshPreview = () => {
-            updatePreview();
+        const handleStructureToggle = () => {
+            if (!applyToggleVisibility()) {
+                updatePreview();
+            }
         };
 
-        imgPreview.addEventListener('change', refreshPreview);
-        filenameToggle.addEventListener('change', refreshPreview);
+        imgPreview.addEventListener('change', handleStructureToggle);
+        filenameToggle.addEventListener('change', handleStructureToggle);
         consoleToggle.addEventListener('change', () => {
-            updatePreview();
+            if (!applyToggleVisibility()) {
+                updatePreview();
+            }
+            if (!consoleOutput) {
+                return;
+            }
             if (consoleToggle.checked) {
                 consoleOutput.style.display = 'block';
                 applyConsoleTheme();
@@ -562,16 +790,36 @@
         });
         darkModeToggle.addEventListener('change', () => {
             applyConsoleTheme();
-            updatePreview();
+            applyCopyButtonTheme();
+            if (!applyThemeToPreview()) {
+                updatePreview();
+            }
         });
         formatBtn.addEventListener('click', () => {
             updatePreview();
-            logToConsole('Formatted to HTML.');
         });
+        if (copyIcon) {
+            const triggerCopy = () => {
+                copyPreviewHtml().then(() => {
+                    copyIcon.dataset.copied = 'true';
+                    setTimeout(() => {
+                        delete copyIcon.dataset.copied;
+                    }, 1300);
+                }).catch(() => {});
+            };
+            copyIcon.addEventListener('click', triggerCopy);
+            copyIcon.addEventListener('keydown', (event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    triggerCopy();
+                }
+            });
+        }
 
         ensurePlaceholder();
-        preview.innerHTML = '';
+        preview.replaceChildren(formatToHtml(''));
         applyConsoleTheme();
+        applyCopyButtonTheme();
     </script>
 </body>
 </html>
