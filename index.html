@@ -69,11 +69,11 @@
             transition: transform 0.12s ease, box-shadow 0.12s ease, background 0.12s ease;
         }
 
-        /* Hover effect specifically for the Format button */
+        /* Hover effect specifically for the Format button: keep color/shadow but no movement */
         #formatBtn:hover {
-            transform: translateY(-2px);
             box-shadow: 0 8px 20px rgba(0,0,0,0.18);
             background: #2fa6e6;
+            transform: none;
         }
         .toolbar label {
             margin-right: 15px;
@@ -308,6 +308,19 @@
         .app-dark .toolbar button {
             background: #2a8fc8;
             color: #fff;
+        }
+        /* Desktop: ensure the copy icon is pinned to the far right of the toolbar */
+        @media (min-width: 901px) {
+            .toolbar {
+                position: relative;
+            }
+            .copy-icon {
+                position: absolute;
+                right: 20px;
+                top: 50%;
+                transform: translateY(-50%);
+                margin-left: 0;
+            }
         }
     </style>
 </head>
