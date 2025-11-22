@@ -455,6 +455,7 @@
                 if (reservedKeywords.has(name) || name.startsWith(PLACEHOLDER_PREFIX)) {
                     return match;
                 }
+                let a = []
                 return `<span style="color:${palette.functionCall};">${name}</span>`;
             });
 
@@ -471,6 +472,11 @@
             // Declaration keywords coloring
             const declarationRegex = new RegExp(`\\b(${Array.from(declarationKeywords).join('|')})\\b`, 'g');
             code = code.replace(declarationRegex, `<span style="color:${palette.declaration};">$1</span>`);
+
+            // Bracket coloring (safe): stash bracket spans so they are restored after escaping
+            // Use gold color #ffd700 for square brackets per user request
+            code = code.replace(/\[/g, () => stash(`<span style="color:#ffd700;">[</span>`));
+            code = code.replace(/\]/g, () => stash(`<span style="color:#ffd700;">]</span>`));
 
             // Variable names (identifiers not already styled)
             const protectedSpans = protectSpans(code);
