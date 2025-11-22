@@ -1,2 +1,2 @@
-# js2html
-Format Javascript code as a html with color coding
+# code2html
+Format code as a html with color coding
