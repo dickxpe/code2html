@@ -202,26 +202,38 @@
 
         /* Responsive / mobile styles */
         @media (max-width: 900px) {
+            /* Use a small grid so we can place the buy-me and copy icon on the same row */
             .toolbar {
-                flex-direction: column;
-                align-items: stretch;
+                display: grid;
+                grid-template-columns: 1fr auto;
+                grid-auto-rows: auto;
+                align-items: center;
                 gap: 8px;
                 padding: 10px;
             }
-            .toolbar-left, .toolbar-right, .toolbar-center {
+            /* Make the left group span full width on the first row */
+            .toolbar-left {
+                grid-column: 1 / -1;
                 display: flex;
                 align-items: center;
-                justify-content: space-between;
                 gap: 8px;
-            }
-            .toolbar-left {
                 flex-wrap: wrap;
             }
+            /* Place buyme in the left column of the second row */
             .toolbar-center {
-                justify-content: center;
+                grid-column: 1;
+                display: flex;
+                align-items: center;
+                justify-content: flex-start;
+                gap: 8px;
             }
+            /* Place copy icon (right) in the second column so it sits next to buyme */
             .toolbar-right {
+                grid-column: 2;
+                display: flex;
+                align-items: center;
                 justify-content: flex-end;
+                gap: 8px;
             }
             .container {
                 flex-direction: column;
@@ -231,16 +243,18 @@
                 width: 100%;
                 min-height: 220px;
             }
+            /* When stacked on mobile, remove editor right/bottom border and use preview top border */
+            .editor-pane {
+                border-right: none;
+                border-bottom: none;
+            }
+            .preview-pane {
+                border-top: 1px solid rgba(0,0,0,0.06);
+            }
+            /* Ensure no extra margin/gap between stacked panes */
+            .editor-pane, .preview-pane { margin: 0; }
             .resizer {
-                /* show a non-draggable horizontal divider on mobile */
-                display: block;
-                height: 6px;
-                width: 100%;
-                cursor: default;
-                background: #848383;
-                touch-action: none;
-                pointer-events: none;
-                margin: 0;
+                display: none;
             }
             .rich-editor {
                 padding: 12px;
