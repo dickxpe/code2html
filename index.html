@@ -202,34 +202,39 @@
 
         /* Responsive / mobile styles */
         @media (max-width: 900px) {
-            /* Use a small grid so we can place the buy-me and copy icon on the same row */
+            /* Use a small grid so we can place buyme beside the checkboxes on the first row
+               and keep the copy icon on a separate second row */
             .toolbar {
                 display: grid;
                 grid-template-columns: 1fr auto;
-                grid-auto-rows: auto;
+                grid-template-rows: auto auto;
                 align-items: center;
                 gap: 8px;
                 padding: 10px;
             }
-            /* Make the left group span full width on the first row */
+            /* Left controls (format, checkboxes, etc.) sit in the first row and span full width
+               so the copy icon can live at the end of the control group but align to the right */
             .toolbar-left {
                 grid-column: 1 / -1;
+                grid-row: 1;
                 display: flex;
                 align-items: center;
                 gap: 8px;
                 flex-wrap: wrap;
             }
-            /* Place buyme in the left column of the second row */
+            /* Put BuyMe in the first row, right column so it sits next to the checkboxes */
             .toolbar-center {
-                grid-column: 1;
+                grid-column: 2;
+                grid-row: 1;
                 display: flex;
                 align-items: center;
-                justify-content: flex-start;
+                justify-content: flex-end;
                 gap: 8px;
             }
-            /* Place copy icon (right) in the second column so it sits next to buyme */
+            /* Place copy icon in the right column of the first row so it stays right-aligned */
             .toolbar-right {
                 grid-column: 2;
+                grid-row: 1;
                 display: flex;
                 align-items: center;
                 justify-content: flex-end;
@@ -264,7 +269,7 @@
                 padding: 8px 12px 16px;
             }
             .copy-icon {
-                margin-left: 0;
+                margin-left: auto;
                 align-self: center;
             }
             #buymeacoffee img { height: 28px !important; }
@@ -318,16 +323,16 @@
             <label><input type="checkbox" id="consoleToggle"> Console</label>
             <label><input type="checkbox" id="filenameToggle" checked> Filename</label>
             <label><input type="checkbox" id="darkModeToggle" checked> Dark Mode</label>
-        </div>
-        <div class="toolbar-center">
             <div id="buymeacoffee">
                 <a href="https://www.buymeacoffee.com/ZebuGames"><img src="https://img.buymeacoffee.com/button-api/?text=Buy me a coffee&emoji=&slug=ZebuGames&button_colour=FFDD00&font_colour=000000&font_family=Cookie&outline_colour=000000&coffee_colour=ffffff" alt="Buy me a coffee"/></a>
             </div>
-        </div>
-        <div class="toolbar-right">
             <div id="copyIcon" class="copy-icon" role="button" tabindex="0" aria-label="Copy preview HTML">
                 <img src="images/copy.png" alt="Copy">
             </div>
+        </div>
+        <div class="toolbar-center">
+        </div>
+        <div class="toolbar-right">
         </div>
     </div>
     <div class="container" id="layoutContainer">
