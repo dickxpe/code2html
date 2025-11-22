@@ -93,6 +93,7 @@
             overflow: auto;
             min-width: 200px;
             min-height: 0;
+            height: 100%;
         }
         .editor-pane {
             display: flex;
@@ -231,7 +232,15 @@
                 min-height: 220px;
             }
             .resizer {
-                display: none;
+                /* show a non-draggable horizontal divider on mobile */
+                display: block;
+                height: 6px;
+                width: 100%;
+                cursor: default;
+                background: #848383;
+                touch-action: none;
+                pointer-events: none;
+                margin: 0;
             }
             .rich-editor {
                 padding: 12px;
@@ -725,7 +734,15 @@
             const filenameLabel = document.createElement('span');
             filenameLabel.dataset.role = 'filename-label';
             filenameLabel.style.opacity = '.9';
+            filenameLabel.style.cursor = 'text';
+            filenameLabel.setAttribute('contenteditable', 'true');
+            filenameLabel.setAttribute('tabindex', '0');
             filenameLabel.textContent = 'filename.js';
+            // prevent the label itself from creating HTML; sanitize on blur
+            filenameLabel.addEventListener('blur', (ev) => {
+                // collapse whitespace/newlines and keep plain text
+                filenameLabel.textContent = (filenameLabel.textContent || '').replace(/\s+/g, ' ').trim();
+            });
             filenameBar.appendChild(filenameLabel);
             card.appendChild(filenameBar);
 
@@ -841,7 +858,7 @@
 
         function ensurePlaceholder() {
             if (!editor.textContent.trim()) {
-                editor.textContent = '// Paste your JavaScript code here and click Format';
+                editor.textContent = '// Paste your code here';
                 editor.classList.add('placeholder-text');
             }
         }
@@ -966,12 +983,15 @@
             });
         }
 
-        // When clicking the filename header, select the whole filename text
+        // When clicking the filename header, focus + select the whole filename text
         preview.addEventListener('click', (e) => {
             const filenameBar = e.target.closest('[data-role="filename"]');
             if (!filenameBar) return;
             const label = filenameBar.querySelector('[data-role="filename-label"]');
             if (!label) return;
+            // don't trigger when clicking the theme toggle button
+            if (e.target.closest('.filename-theme-toggle')) return;
+            label.focus();
             const range = document.createRange();
             range.selectNodeContents(label);
             const sel = window.getSelection();
@@ -991,13 +1011,15 @@
         function applyResponsiveHeights() {
             const w = window.innerWidth;
             if (!layoutContainer) return;
-            if (w <= 900) {
-                const toolbarEl = document.querySelector('.toolbar');
-                const toolbarH = toolbarEl ? Math.round(toolbarEl.getBoundingClientRect().height) : 80;
-                const available = Math.max(200, window.innerHeight - toolbarH);
-                layoutContainer.style.height = available + 'px';
 
-                // Give editor ~40% and preview ~60% of available height
+            const toolbarEl = document.querySelector('.toolbar');
+            const toolbarH = toolbarEl ? Math.round(toolbarEl.getBoundingClientRect().height) : 80;
+            const available = Math.max(200, window.innerHeight - toolbarH);
+            // Always set the layout container height to viewport minus toolbar so panes can fill
+            layoutContainer.style.height = available + 'px';
+
+            if (w <= 900) {
+                // Give editor ~40% and preview ~60% of available height on mobile
                 const editorH = Math.max(120, Math.round(available * 0.42));
                 const previewH = Math.max(120, available - editorH);
 
@@ -1008,14 +1030,13 @@
                 editorPane.style.overflow = 'auto';
                 previewPane.style.overflow = 'auto';
             } else {
-                // Restore desktop flex layout
-                layoutContainer.style.height = '';
+                // Desktop: keep horizontal split, let panes fill container height
                 editorPane.style.flex = '0 0 50%';
-                editorPane.style.height = '';
+                editorPane.style.height = '100%';
                 previewPane.style.flex = '1 1 auto';
-                previewPane.style.height = '';
-                editorPane.style.overflow = '';
-                previewPane.style.overflow = '';
+                previewPane.style.height = '100%';
+                editorPane.style.overflow = 'auto';
+                previewPane.style.overflow = 'auto';
             }
         }
 
