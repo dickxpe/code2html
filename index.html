@@ -987,7 +987,41 @@
             buyMeImg.style.width = 'auto';
         }
 
+        // Ensure preview/editor are scrollable on mobile and reachable to the end
+        function applyResponsiveHeights() {
+            const w = window.innerWidth;
+            if (!layoutContainer) return;
+            if (w <= 900) {
+                const toolbarEl = document.querySelector('.toolbar');
+                const toolbarH = toolbarEl ? Math.round(toolbarEl.getBoundingClientRect().height) : 80;
+                const available = Math.max(200, window.innerHeight - toolbarH);
+                layoutContainer.style.height = available + 'px';
+
+                // Give editor ~40% and preview ~60% of available height
+                const editorH = Math.max(120, Math.round(available * 0.42));
+                const previewH = Math.max(120, available - editorH);
+
+                editorPane.style.flex = 'none';
+                previewPane.style.flex = 'none';
+                editorPane.style.height = editorH + 'px';
+                previewPane.style.height = previewH + 'px';
+                editorPane.style.overflow = 'auto';
+                previewPane.style.overflow = 'auto';
+            } else {
+                // Restore desktop flex layout
+                layoutContainer.style.height = '';
+                editorPane.style.flex = '0 0 50%';
+                editorPane.style.height = '';
+                previewPane.style.flex = '1 1 auto';
+                previewPane.style.height = '';
+                editorPane.style.overflow = '';
+                previewPane.style.overflow = '';
+            }
+        }
+
         window.addEventListener('resize', syncBuyMeSize);
+        window.addEventListener('resize', applyResponsiveHeights);
+        window.addEventListener('orientationchange', applyResponsiveHeights);
 
         ensurePlaceholder();
         preview.replaceChildren(formatToHtml(''));
@@ -995,6 +1029,8 @@
         applyConsoleTheme();
         applyCopyButtonTheme();
         syncBuyMeSize();
+        // apply responsive heights after initial render
+        applyResponsiveHeights();
     </script>
 </body>
 </html>
