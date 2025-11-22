@@ -775,6 +775,8 @@
                 // collapse whitespace/newlines and keep plain text
                 filenameLabel.textContent = (filenameLabel.textContent || '').replace(/\s+/g, ' ').trim();
             });
+            // Attach selection handlers (mousedown/touch/dblclick/focus)
+            attachFilenameSelectionHandlers(filenameLabel);
             filenameBar.appendChild(filenameLabel);
             card.appendChild(filenameBar);
 
@@ -817,6 +819,32 @@
 
         function getPreviewCard() {
             return preview.querySelector('[data-role="code-card"]');
+        }
+
+        // Ensure filename selection handlers are attached (idempotent)
+        function attachFilenameSelectionHandlers(filenameLabel) {
+            if (!filenameLabel || filenameLabel.dataset.selectHandlersAttached === '1') return;
+            const selectFilename = (ev) => {
+                try { ev.preventDefault(); } catch (e) {}
+                filenameLabel.focus();
+                const range = document.createRange();
+                range.selectNodeContents(filenameLabel);
+                const sel = window.getSelection();
+                sel.removeAllRanges();
+                sel.addRange(range);
+            };
+            filenameLabel.addEventListener('mousedown', selectFilename);
+            filenameLabel.addEventListener('touchstart', selectFilename, { passive: false });
+            filenameLabel.addEventListener('dblclick', selectFilename);
+            // Also select on focus for keyboard users
+            filenameLabel.addEventListener('focus', (ev) => {
+                const range = document.createRange();
+                range.selectNodeContents(filenameLabel);
+                const sel = window.getSelection();
+                sel.removeAllRanges();
+                sel.addRange(range);
+            });
+            filenameLabel.dataset.selectHandlersAttached = '1';
         }
 
         function applyToggleVisibility() {
@@ -907,41 +935,140 @@
             // If it looks like JS code, format it
             if (/function|let|const|var|=>|return|class|for|while|if|else|switch|case|break|continue|try|catch|finally/.test(content)) {
                 const existingCard = getPreviewCard();
-                let savedFilename = null;
-                let savedConsole = null;
+                const theme = getThemeStyles();
+                // build lines array similar to formatToHtml so we can update in-place
+                let lines = content.split(/\r?\n/);
+                while (lines.length > 1 && lines[lines.length - 1] === '') {
+                    lines.pop();
+                }
+                if (lines.length === 0) lines = [''];
+
                 if (existingCard) {
-                    const existingFilename = existingCard.querySelector('[data-role="filename-label"]');
-                    if (existingFilename) {
-                        savedFilename = existingFilename.textContent;
-                    }
-                    const existingConsole = existingCard.querySelector('[data-role="console"]');
-                    if (existingConsole) {
-                        savedConsole = existingConsole.innerHTML;
-                    }
-                }
+                    // Preserve mutable parts of the card so we don't clobber user edits
+                    const filenameEl = existingCard.querySelector('[data-role="filename-label"]');
+                    const savedFilename = filenameEl ? filenameEl.textContent : null;
+                    const imagePanel = existingCard.querySelector('[data-role="image"]');
+                    const savedImageInner = imagePanel ? imagePanel.innerHTML : null;
+                    const savedImageDisplay = imagePanel ? imagePanel.style.display : null;
+                    const consolePanel = existingCard.querySelector('[data-role="console"]');
+                    const savedConsoleInner = consolePanel ? consolePanel.innerHTML : null;
 
-                const card = formatToHtml(content);
-                if (savedFilename !== null) {
-                    const filenameLabel = card.querySelector('[data-role="filename-label"]');
-                    if (filenameLabel) {
-                        filenameLabel.textContent = savedFilename;
+                    // Update code lines in-place to avoid replacing the whole card
+                    const lineList = existingCard.querySelector('[data-role="code-lines"]');
+                    if (lineList) {
+                        lineList.innerHTML = '';
+                        for (let line of lines) {
+                            const li = document.createElement('li');
+                            li.style.cssText = 'white-space: pre-wrap; word-break: break-word; overflow-wrap: anywhere;';
+                            li.innerHTML = highlightJS(line, theme.syntax);
+                            lineList.appendChild(li);
+                        }
+                    } else {
+                        // If structure changed unexpectedly, recreate the card as a fallback
+                        const card = formatToHtml(content);
+                        preview.replaceChildren(card);
+                        applyToggleVisibility();
+                        applyCopyButtonTheme();
+                        return;
                     }
-                }
-                if (savedConsole !== null) {
-                    const consolePanel = card.querySelector('[data-role="console"]');
-                    if (consolePanel) {
-                        consolePanel.innerHTML = savedConsole;
-                    }
-                }
 
-                preview.replaceChildren(card);
-                applyToggleVisibility();
-                applyCopyButtonTheme();
+                    // Update styling for code region and container in case theme changed
+                    const codeRegion = existingCard.querySelector('[data-role="code-row"]');
+                    if (codeRegion) {
+                        codeRegion.style.cssText = `font-family: ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,'Liberation Mono','Courier New',monospace; font-size: 14px; line-height: 1.55; background: ${theme.codeBackground}; display: flex;`;
+                    }
+                    existingCard.style.cssText = theme.container;
+
+                    // Restore preserved filename/console/image content & visibility
+                    if (savedFilename !== null) {
+                        const filenameLabel = existingCard.querySelector('[data-role="filename-label"]');
+                        if (filenameLabel) {
+                            filenameLabel.textContent = savedFilename;
+                            attachFilenameSelectionHandlers(filenameLabel);
+                        }
+                    }
+                    if (savedConsoleInner !== null) {
+                        const consoleEl = existingCard.querySelector('[data-role="console"]');
+                        if (consoleEl) consoleEl.innerHTML = savedConsoleInner;
+                    }
+                    if (imagePanel) {
+                        // respect the current checkbox state, but keep inner content if user modified it
+                        imagePanel.style.display = imgPreview.checked ? 'flex' : 'none';
+                        if (savedImageInner) imagePanel.innerHTML = savedImageInner;
+                        imagePanel.style.cssText = `width: 45%; max-width: 480px; border-left: ${theme.dividerBorder}; background: ${theme.imageBackground}; display: ${imgPreview.checked ? 'flex' : 'none'}; align-items: center; justify-content: center; padding: 12px;`;
+                    }
+
+                    applyToggleVisibility();
+                    applyCopyButtonTheme();
+                } else {
+                    const card = formatToHtml(content);
+                    preview.replaceChildren(card);
+                    applyToggleVisibility();
+                    applyCopyButtonTheme();
+                }
             } else {
-                const card = formatToHtml(content);
-                preview.replaceChildren(card);
-                applyToggleVisibility();
-                applyCopyButtonTheme();
+                const existingCard = getPreviewCard();
+                const theme = getThemeStyles();
+                let lines = content.split(/\r?\n/);
+                while (lines.length > 1 && lines[lines.length - 1] === '') lines.pop();
+                if (lines.length === 0) lines = [''];
+
+                if (existingCard) {
+                    const filenameEl = existingCard.querySelector('[data-role="filename-label"]');
+                    const savedFilename = filenameEl ? filenameEl.textContent : null;
+                    const imagePanel = existingCard.querySelector('[data-role="image"]');
+                    const savedImageInner = imagePanel ? imagePanel.innerHTML : null;
+                    const consolePanel = existingCard.querySelector('[data-role="console"]');
+                    const savedConsoleInner = consolePanel ? consolePanel.innerHTML : null;
+
+                    const lineList = existingCard.querySelector('[data-role="code-lines"]');
+                    if (lineList) {
+                        lineList.innerHTML = '';
+                        for (let line of lines) {
+                            const li = document.createElement('li');
+                            li.style.cssText = 'white-space: pre-wrap; word-break: break-word; overflow-wrap: anywhere;';
+                            li.innerHTML = highlightJS(line, theme.syntax);
+                            lineList.appendChild(li);
+                        }
+                    } else {
+                        const card = formatToHtml(content);
+                        preview.replaceChildren(card);
+                        applyToggleVisibility();
+                        applyCopyButtonTheme();
+                        return;
+                    }
+
+                    const codeRegion = existingCard.querySelector('[data-role="code-row"]');
+                    if (codeRegion) {
+                        codeRegion.style.cssText = `font-family: ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,'Liberation Mono','Courier New',monospace; font-size: 14px; line-height: 1.55; background: ${theme.codeBackground}; display: flex;`;
+                    }
+                    existingCard.style.cssText = theme.container;
+
+                    if (savedFilename !== null) {
+                        const filenameLabel = existingCard.querySelector('[data-role="filename-label"]');
+                        if (filenameLabel) {
+                            filenameLabel.textContent = savedFilename;
+                            attachFilenameSelectionHandlers(filenameLabel);
+                        }
+                    }
+                    if (savedConsoleInner !== null) {
+                        const consoleEl = existingCard.querySelector('[data-role="console"]');
+                        if (consoleEl) consoleEl.innerHTML = savedConsoleInner;
+                    }
+                    if (imagePanel) {
+                        imagePanel.style.display = imgPreview.checked ? 'flex' : 'none';
+                        if (savedImageInner) imagePanel.innerHTML = savedImageInner;
+                        imagePanel.style.cssText = `width: 45%; max-width: 480px; border-left: ${theme.dividerBorder}; background: ${theme.imageBackground}; display: ${imgPreview.checked ? 'flex' : 'none'}; align-items: center; justify-content: center; padding: 12px;`;
+                    }
+
+                    applyToggleVisibility();
+                    applyCopyButtonTheme();
+                } else {
+                    const card = formatToHtml(content);
+                    preview.replaceChildren(card);
+                    applyToggleVisibility();
+                    applyCopyButtonTheme();
+                }
             }
         }
 
@@ -1015,21 +1142,8 @@
             });
         }
 
-        // When clicking the filename header, focus + select the whole filename text
-        preview.addEventListener('click', (e) => {
-            const filenameBar = e.target.closest('[data-role="filename"]');
-            if (!filenameBar) return;
-            const label = filenameBar.querySelector('[data-role="filename-label"]');
-            if (!label) return;
-            // don't trigger when clicking the theme toggle button
-            if (e.target.closest('.filename-theme-toggle')) return;
-            label.focus();
-            const range = document.createRange();
-            range.selectNodeContents(label);
-            const sel = window.getSelection();
-            sel.removeAllRanges();
-            sel.addRange(range);
-        });
+        // Filename selection now handled by direct mousedown/touchstart listeners
+        // attached to the filename label when the preview card is created.
 
         function syncBuyMeSize() {
             if (!buyMeImg || !formatBtn) return;
